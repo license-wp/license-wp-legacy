@@ -24,6 +24,13 @@
 	along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+/**
+ * Fix request vars
+ *
+ * @param array $request
+ *
+ * @return array
+ */
 function license_wp_legacy_fix_request( $request ) {
 
 	// licence should license
@@ -35,5 +42,38 @@ function license_wp_legacy_fix_request( $request ) {
 	return $request;
 }
 
+// filter request vars
 add_filter( 'license_wp_api_activation_request', 'license_wp_legacy_fix_request' );
 add_filter( 'license_wp_api_update_request', 'license_wp_legacy_fix_request' );
+
+/**
+ * Run DB upgrade
+ */
+function license_wp_legacy_run_db_upgrade() {
+	global $wpdb;
+
+	// You'll need to move the old database tables to the new ones manually
+
+	// fix post meta values
+	$rows = $wpdb->get_results( "SELECT * FROM `{$wpdb->postmeta}` WHERE `meta_key` LIKE '%licence%'" );
+
+	$row_count = count( $rows );
+
+	foreach ( $rows as $row ) {
+		$new_key = str_ireplace( 'licence', 'license', $row->meta_key );
+		$wpdb->query( sprintf( "UPDATE `{$wpdb->postmeta}` SET `meta_key` = '%s' WHERE `meta_id` = %d ", $new_key, $row->meta_id ) );
+	}
+
+	printf( "Updated <strong>%s</strong> rows!<br/>", $row_count );
+	exit;
+
+	echo 'License WP database upgrade complete';
+
+}
+
+// listen for upgrade trigger
+add_action( 'admin_init', function () {
+	if ( isset( $_GET['license-wp-legacy-upgrade'] ) && current_user_can( 'manage_options' ) ) {
+		license_wp_legacy_run_db_upgrade();
+	}
+} );
